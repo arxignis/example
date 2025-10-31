@@ -2,6 +2,9 @@
 
 This directory contains example integrations and configurations for Arxignis.
 
+## Flow diagram
+![Arxignis architecture](./fail2ban.svg)
+
 ## Fail2Ban Integration
 
 The `fail2ban/` directory contains a Fail2Ban action file that integrates with the Arxignis API to automatically block malicious IP addresses.
