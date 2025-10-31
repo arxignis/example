@@ -9,8 +9,9 @@ The `fail2ban/` directory contains a Fail2Ban action file that integrates with t
 ### Setup
 
 1. Copy the action file to your Fail2Ban actions directory:
+
    ```bash
-   sudo cp fail2ban/arxignis.conf /etc/fail2ban/action.d/
+   curl -fSL https://raw.githubusercontent.com/arxignis/example/refs/heads/main/fail2ban/arxignis.conf -o /etc/fail2ban/action.d/arxignis.conf
    ```
 
 2. Set appropriate permissions (the file contains your API token):
