@@ -34,7 +34,8 @@ The `fail2ban/` directory contains a Fail2Ban action file that integrates with t
    ```
    Add or modify the action parameter:
    ```
-   action = iptables-multiport[arxignis]
+      banaction = arxignis
+      banaction_allports = arxignis
    ```
 
 ### Requirements
