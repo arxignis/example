@@ -1,0 +1,295 @@
+
+{
+  "id": "27c4f7f6-bfe4-40cd-821f-b76586bf9d9b",
+  "name": "Investigate and Block Malicious IPs in Arxignis",
+  "description": "Creates an investigative notebook to allow security responders to kickstart their investigation and notified the security responder in Slack. The Workflow also gives them the options to block the IP or raise an incident.",
+  "tags": [
+    "security",
+    "source:application-security"
+  ],
+  "published": false,
+  "spec": {
+    "triggers": [
+      {
+        "startStepNames": [
+          "Get_security_signal_details"
+        ],
+        "securityTrigger": {}
+      }
+    ],
+    "steps": [
+      {
+        "name": "Get_security_signal_details",
+        "actionId": "com.datadoghq.dd.cloudsecurity.getSecuritySignal",
+        "parameters": [
+          {
+            "name": "signalId",
+            "value": "{{ Source.securitySignal.id }}"
+          }
+        ],
+        "outboundEdges": [
+          {
+            "nextStepName": "Extract_services_and_IPs",
+            "branchName": "main"
+          }
+        ],
+        "display": {
+          "bounds": {
+            "x": 0,
+            "y": 192
+          }
+        }
+      },
+      {
+        "name": "Filter_investigative_notebook",
+        "actionId": "com.datadoghq.dd.notebooks.getNotebookWithoutCells",
+        "parameters": [
+          {
+            "name": "templateVariables",
+            "value": {}
+          },
+          {
+            "name": "notebook_id",
+            "value": "{{ Trigger.Investigative_notebook }}"
+          }
+        ],
+        "outboundEdges": [
+          {
+            "nextStepName": "Notify_and_ask_to_block",
+            "branchName": "main"
+          }
+        ],
+        "display": {
+          "bounds": {
+            "x": 0,
+            "y": 504
+          }
+        }
+      },
+      {
+        "name": "Extract_services_and_IPs",
+        "actionId": "com.datadoghq.datatransformation.func",
+        "parameters": [
+          {
+            "name": "script",
+            "value": "/**\n * The code checks if the jsonData which is the JSON of the ASM security \n * signal has a property called custom.actor. \n * If it does, it assigns the value of jsonData.custom.actor.ip to ipArr. \n * After that, the code checks if \n * jsonData has a property called service. If it does, it assigns the value\n * of jsonData.service to serviceArr.\n * Finally, the code returns an object with two properties: \n * ipArr and serviceArr.\n */\n\n\nvar jsonData = $.Steps.Get_security_signal_details.securitySignal;\n\nvar ipArr = [];\nvar serviceArr = [];\n\n// Extract IP addresses\nif (jsonData.custom.actor) {\n  ipArr = jsonData.custom.actor.ip;\n}\nelse\n  ipArr = \"*\"; \n\n// Extract services\nif (jsonData.service) {\n  serviceArr = jsonData.service;\n}\nelse\n serviceArr = \"*\";\n  return {\n    ipArr: Array.isArray(ipArr) ? ipArr : [ipArr],\n    serviceArr: Array.isArray(serviceArr) ? serviceArr : [serviceArr]\n  };"
+          }
+        ],
+        "outboundEdges": [
+          {
+            "nextStepName": "Filter_investigative_notebook",
+            "branchName": "main"
+          }
+        ],
+        "display": {
+          "bounds": {
+            "x": 0,
+            "y": 384
+          }
+        }
+      },
+      {
+        "name": "Notify_and_ask_to_block",
+        "actionId": "com.datadoghq.slack.send_interactive_message",
+        "parameters": [
+          {
+            "name": "actionChoices",
+            "value": [
+              {
+                "displayName": ":no_entry_sign: Block",
+                "outboundBranch": "block"
+              },
+              {
+                "displayName": "⚠️ Create Incident",
+                "outboundBranch": "create_incident"
+              }
+            ]
+          },
+          {
+            "name": "promptText",
+            "value": "Security Signal [{{Steps.Get_security_signal_details.detectionRule.name}}] has detected the following malicious IPs:\n{{ Steps.Extract_services_and_IPs.data }}\n\nYou can investigate this alert using this notebook:\n{{Steps.Filter_investigative_notebook.url}}\n\nWould you like to block these IPs?"
+          },
+          {
+            "name": "timeoutHours",
+            "value": 1
+          },
+          {
+            "name": "teamId",
+            "value": ""
+          },
+          {
+            "name": "channel",
+            "value": ""
+          },
+          {
+            "name": "mentionTargets",
+            "value": [
+              ""
+            ]
+          }
+        ],
+        "outboundEdges": [
+          {
+            "nextStepName": "Create_security_incident",
+            "branchName": "create_incident"
+          },
+          {
+            "nextStepName": "Arxignis",
+            "branchName": "block"
+          }
+        ],
+        "display": {
+          "bounds": {
+            "x": 0,
+            "y": 696
+          }
+        }
+      },
+      {
+        "name": "Create_security_incident",
+        "actionId": "com.datadoghq.dd.incidents.createIncident",
+        "parameters": [
+          {
+            "name": "fields",
+            "value": {
+              "detection_method": {
+                "value": "monitor"
+              },
+              "root_cause": {
+                "value": "{{ Steps.Get_security_signal_details.detectionRule.name }}"
+              },
+              "services": {
+                "value": "{{ Steps.Extract_services_and_IPs.data.serviceArr }}"
+              },
+              "severity": {
+                "value": "SEV-5"
+              },
+              "summary": {
+                "value": "Security Signal [{{Steps.Get_security_signal_details.detectionRule.name}}] has detected the following malicious IPs: {{ Steps.Extract_services_and_IPs.data.ipArr }}  You can investigate this alert using this notebook: {{Steps.Filter_investigative_notebook.url}}"
+              }
+            }
+          },
+          {
+            "name": "notification_handles",
+            "value": []
+          },
+          {
+            "name": "initial_cells",
+            "value": [
+              {
+                "cell_type": "markdown",
+                "content": {
+                  "content": "Security Signal [{{Steps.Get_security_signal_details.detectionRule.name}}] has **detected the following malicious IPs:**\n{{ Steps.Extract_services_and_IPs.data.}}\n\nYou can investigate this alert using this notebook:\n{{Steps.Filter_investigative_notebook.url}}"
+                },
+                "important": false
+              }
+            ]
+          },
+          {
+            "name": "customer_impacted",
+            "value": false
+          },
+          {
+            "name": "title",
+            "value": "Malicious IP Detected. Requires Investigation"
+          }
+        ],
+        "display": {
+          "bounds": {
+            "x": 192,
+            "y": 888
+          }
+        }
+      },
+      {
+        "name": "Arxignis",
+        "actionId": "com.datadoghq.http.request",
+        "connectionLabel": "INTEGRATION_NONE",
+        "parameters": [
+          {
+            "name": "verb",
+            "value": "POST"
+          },
+          {
+            "name": "requestHeaders",
+            "value": [
+              {
+                "key": "Content-Type",
+                "value": [
+                  "application/json"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "url",
+            "value": "http://api.arxignis.com/v1/signal"
+          },
+          {
+            "name": "body",
+            "value": [
+              {
+                "action": "block",
+                "description": "Investigate and Block Malicious IPs in Arxignis",
+                "ip": "{{ Steps.Extract_services_and_IPs.data }}",
+                "name": "Datadog Block Malicious",
+                "type": "access_rules"
+              }
+            ]
+          }
+        ],
+        "completionGate": {
+          "completionCondition": {
+            "operand1": "{{ status }}",
+            "operator": "OPERATOR_EQUAL",
+            "operand2": 200
+          },
+          "retryStrategy": {
+            "kind": "RETRY_STRATEGY_LINEAR",
+            "linear": {
+              "interval": "10s",
+              "maxRetries": 3
+            }
+          }
+        },
+        "display": {
+          "bounds": {
+            "x": -156,
+            "y": 888
+          }
+        }
+      }
+    ],
+    "handle": "Investigate-and-Block-Malicious-IPs-in-Arxignis",
+    "connectionEnvs": [
+      {
+        "env": "default",
+        "connections": [
+          {
+            "connectionId": "fd0db20d-af6b-4148-91ca-7fc1e5a8dc49",
+            "label": "INTEGRATION_NONE"
+          }
+        ]
+      }
+    ],
+    "inputSchema": {
+      "parameters": [
+        {
+          "name": "Investigative_notebook",
+          "label": "Investigative notebook",
+          "type": "STRING"
+        },
+        {
+          "name": "IP_set_name",
+          "label": "IP set name",
+          "type": "STRING"
+        },
+        {
+          "name": "IP_set_ID",
+          "label": "IP set ID",
+          "type": "STRING"
+        }
+      ]
+    }
+  }
+}
