@@ -32,10 +32,22 @@ The `fail2ban/` directory contains a Fail2Ban action file that integrates with t
    ```bash
    sudo nano /etc/fail2ban/jail.local
    ```
+
    Add or modify the action parameter:
    ```
       banaction = arxignis
       banaction_allports = arxignis
+   ```
+
+   **Debian** related system. E.g: Ubuntu, Debian. `/etc/fail2ban/jail.d/defaults-debian.conf`
+   ```
+   [DEFAULT]
+   banaction = arxignis
+   banaction_allports = arxignis
+   backend = systemd
+
+   [sshd]
+   enabled = true
    ```
 
 ### Requirements
